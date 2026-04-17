@@ -2,11 +2,11 @@ const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const STORAGE_KEY = 'paloma-panic.highscores.v1';
 const MAX_HIGH_SCORES = 5;
-const ROUND_TIME = 60;
 const MAX_ESCAPES = 7;
 const MAX_TARGETS = 5;
 const BOSS_HITS = 3;
 const START_GRACE = 8;
+const CODE_BITS = ['{}', '</>', 'NaN', '404', '++', '&&', 'FIX', 'BUG', 'NULL', '::'];
 
 const CABINET_KEYS = {
   P1_U: ['w'],
@@ -65,11 +65,12 @@ function create() {
     combo: 0,
     bestCombo: 0,
     escapes: 0,
-    timeLeft: ROUND_TIME,
+    elapsed: 0,
     spawnAt: 0,
     flashAt: 0,
     focus: 100,
     focusOn: false,
+    focusLock: false,
     pauseLocked: false,
     lastScore: 0,
     hi: [],
@@ -80,6 +81,7 @@ function create() {
   s.beams = [];
   createControls(s);
   buildScene(s);
+  createNameInput(s);
   loadScores(s).finally(() => showMenu(s));
 }
 
@@ -87,7 +89,10 @@ function update(time, delta) {
   const s = this;
   if (!s.state) return;
   const dt = delta / 1000;
-  const slow = s.state.phase === 'play' && s.state.focusOn && s.state.focus > 0 ? 0.45 : 1;
+  const holdingSlow = isControlDown(s, 'P1_2');
+  if (!holdingSlow && s.state.focus >= 18) s.state.focusLock = false;
+  const activeSlow = s.state.phase === 'play' && holdingSlow && !s.state.focusLock && s.state.focus > 0;
+  const slow = activeSlow ? 0.45 : 1;
   const sim = dt * slow;
 
   if (s.state.phase === 'menu') {
@@ -100,6 +105,10 @@ function update(time, delta) {
     return;
   }
 
+  if (s.state.phase === 'naming') {
+    return;
+  }
+
   updateCrosshair(s, dt);
   updateSkyline(s, time);
 
@@ -107,17 +116,28 @@ function update(time, delta) {
     s.state.pauseLocked = !s.state.pauseLocked;
     s.pauseText.setVisible(s.state.pauseLocked);
   }
+  if (s.state.pauseLocked && consumeAnyPressedControl(s, ['P1_2'])) {
+    s.state.pauseLocked = false;
+    s.pauseText.setVisible(false);
+    showMenu(s);
+    return;
+  }
   if (s.state.pauseLocked) return;
 
-  s.state.focusOn = isControlDown(s, 'P1_2');
-  if (s.state.focusOn && s.state.focus > 0) {
+  s.state.focusOn = activeSlow;
+  if (s.state.focusOn) {
     s.state.focus = Math.max(0, s.state.focus - 28 * dt);
+    if (s.state.focus <= 0) {
+      s.state.focus = 0;
+      s.state.focusOn = false;
+      s.state.focusLock = true;
+    }
   } else {
     s.state.focus = Math.min(100, s.state.focus + 18 * dt);
   }
 
-  s.state.timeLeft = Math.max(0, s.state.timeLeft - dt);
-  if (s.state.timeLeft <= 0 || s.state.escapes >= MAX_ESCAPES) {
+  s.state.elapsed += dt;
+  if (s.state.escapes >= MAX_ESCAPES) {
     return endRun(s);
   }
 
@@ -146,19 +166,37 @@ function buildScene(s) {
     const b = s.add.rectangle(x, 430 - h / 2, 42, h, i % 2 ? 0x11293d : 0x17344b).setOrigin(0, 0.5);
     s.skyline.push(b);
     for (let y = 0; y < h - 16; y += 16) {
-      if ((i + y) % 3) s.add.rectangle(x + 8 + (y % 2) * 12, 430 - h + 16 + y, 6, 8, 0xffcf5a, 0.32);
+      if ((i + y) % 3) s.add.rectangle(x + 8 + (y % 2) * 12, 430 - h + 16 + y, 6, 8, (i + y) % 4 ? 0x7af0ff : 0xb8ff6a, 0.38);
+    }
+    if (i % 3 === 0) {
+      s.add.text(x + 5, 430 - h + 10, i % 2 ? 'if' : '</>', {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: i % 2 ? '#b8ff6a' : '#7af0ff',
+      }).setAlpha(0.35);
     }
   }
 
-  s.hudTop = s.add.rectangle(400, 26, 748, 44, 0x03070c, 0.78).setStrokeStyle(2, 0x9fffe0, 0.35);
-  s.scoreText = addText(s, 44, 16, 'SCORE 0000', 22, '#f6ffb0', 'left');
-  s.comboText = addText(s, 300, 16, 'COMBO X1', 22, '#7af0ff', 'left');
-  s.timeText = addText(s, 548, 16, 'TIME 60', 22, '#ffd06a', 'left');
-  s.escapeText = addText(s, 684, 16, 'FLY 0/7', 22, '#ff8c78', 'left');
-  s.focusLabel = addText(s, 44, 48, 'FOCUS', 14, '#c6fff7', 'left');
-  s.focusBar = s.add.rectangle(126, 56, 120, 10, 0x17344b).setOrigin(0, 0.5).setStrokeStyle(2, 0x7af0ff, 0.4);
-  s.focusFill = s.add.rectangle(126, 56, 120, 10, 0x7af0ff).setOrigin(0, 0.5);
-  s.statusText = addText(s, 400, 578, 'P1 MUEVE  U DISPARA  I ENFOQUE  ENTER PAUSA', 14, '#d8fff6', 'center');
+  const obX = 468;
+  s.add.rectangle(obX, 414, 40, 12, 0x11283a, 0.36);
+  s.add.rectangle(obX, 322, 18, 170, 0x1b3447, 0.46);
+  s.add.rectangle(obX + 3, 322, 6, 162, 0x5e7a8d, 0.12);
+  s.add.triangle(obX, 218, -9, 20, 9, 20, 0, -22, 0x1b3447, 0.46);
+
+
+  for (let y = 74; y < 600; y += 6) {
+    s.add.rectangle(400, y, 800, 1, 0xffffff, 0.028);
+  }
+
+  s.hudTop = s.add.rectangle(400, 42, 748, 44, 0x03070c, 0.78).setStrokeStyle(2, 0x9fffe0, 0.35);
+  s.scoreText = addText(s, 44, 32, 'BUILD 0000', 22, '#f6ffb0', 'left');
+  s.comboText = addText(s, 284, 32, 'CHAIN X1', 22, '#7af0ff', 'left');
+  s.timeText = addText(s, 520, 32, 'UPTIME 0', 22, '#ffd06a', 'left');
+  s.escapeText = addText(s, 648, 32, 'LEAKS 0/7', 22, '#ff8c78', 'left');
+  s.focusLabel = addText(s, 44, 64, 'SLOWMO', 14, '#c6fff7', 'left');
+  s.focusBar = s.add.rectangle(126, 72, 120, 10, 0x17344b).setOrigin(0, 0.5).setStrokeStyle(2, 0x7af0ff, 0.4);
+  s.focusFill = s.add.rectangle(126, 72, 120, 10, 0x7af0ff).setOrigin(0, 0.5);
+  s.statusText = addText(s, 400, 578, 'P1 CURSOR  U PATCH  I DEBUG  ENTER PAUSA', 14, '#d8fff6', 'center');
 
   s.targetLayer = s.add.container(0, 0);
   s.fxLayer = s.add.container(0, 0);
@@ -174,24 +212,117 @@ function buildScene(s) {
   s.crosshair.setDepth(20);
 
   s.flash = s.add.rectangle(400, 300, 800, 600, 0xfff4cc, 0).setDepth(30);
-  s.pauseText = addText(s, 400, 300, 'PAUSA', 34, '#ffffff', 'center').setDepth(40).setVisible(false);
+  s.pauseText = addText(s, 400, 286, 'PAUSA\nENTER CONTINUA\nI TERMINA PARTIDA', 28, '#ffffff', 'center')
+    .setDepth(40)
+    .setVisible(false);
 
   s.menu = s.add.container(0, 0).setDepth(50);
   s.menu.add(s.add.rectangle(400, 300, 800, 600, 0x03070c, 0.82));
-  s.menu.add(addText(s, 400, 94, 'PALOMA PANIC', 44, '#f7ffb5', 'center', true));
-  s.menu.add(addText(s, 400, 140, 'BUENOS AIRES UNDER SIEGE', 18, '#7af0ff', 'center', true));
+  s.menu.add(addText(s, 400, 84, 'PALOMA PANIC', 44, '#f7ffb5', 'center', true));
+  s.menu.add(addText(s, 400, 132, 'PROD PANIC', 24, '#ff8c78', 'center', true));
+  s.menu.add(addText(s, 400, 168, 'DEFENDE EL DEPLOY DE BUENOS AIRES', 16, '#7af0ff', 'center', true));
   s.menuInfo = addText(s, 400, 202, '', 18, '#e2fff8', 'center');
-  s.menuHelp = addText(s, 400, 504, 'DISPARA PALOMAS FURIOSAS. ENTER O U PARA EMPEZAR.', 16, '#ffd06a', 'center');
+  s.menuHelp = addText(s, 400, 504, 'PATCHEA BUGS VOLADORES. ENTER O U PARA DEPLOY.', 16, '#ffd06a', 'center');
   s.menuHigh = addText(s, 400, 280, '', 18, '#d8fff6', 'center');
   s.menu.add([s.menuInfo, s.menuHelp, s.menuHigh]);
 
   s.over = s.add.container(0, 0).setDepth(55).setVisible(false);
   s.over.add(s.add.rectangle(400, 300, 800, 600, 0x02050a, 0.94));
-  s.overTitle = addText(s, 400, 120, 'RONDA TERMINADA', 34, '#fff7b1', 'center', true);
+  s.overTitle = addText(s, 400, 120, 'BUILD CERRADO', 34, '#fff7b1', 'center', true);
   s.overScore = addText(s, 400, 186, '', 24, '#e7fff8', 'center');
   s.overTable = addText(s, 400, 270, '', 20, '#7af0ff', 'center');
-  s.overHelp = addText(s, 400, 502, 'ENTER O U PARA VOLVER AL MENU', 16, '#ffd06a', 'center');
+  s.overHelp = addText(s, 400, 502, 'ENTER O U PARA REINICIAR EL DEPLOY', 16, '#ffd06a', 'center');
   s.over.add([s.overTitle, s.overScore, s.overTable, s.overHelp]);
+
+}
+
+function createNameInput(s) {
+  const root = document.getElementById('game-root') || document.body;
+  if (root !== document.body && getComputedStyle(root).position === 'static') root.style.position = 'relative';
+  const wrap = document.createElement('div');
+  wrap.style.position = root === document.body ? 'fixed' : 'absolute';
+  wrap.style.inset = '0';
+  wrap.style.display = 'none';
+  wrap.style.alignItems = 'center';
+  wrap.style.justifyContent = 'center';
+  wrap.style.background = 'rgba(2,5,10,0.72)';
+  wrap.style.zIndex = '99';
+
+  const card = document.createElement('div');
+  card.style.width = 'min(420px, 82%)';
+  card.style.padding = '22px 24px';
+  card.style.border = '2px solid rgba(122,240,255,0.45)';
+  card.style.background = 'rgba(3,7,12,0.96)';
+  card.style.boxShadow = '0 12px 40px rgba(0,0,0,0.45)';
+  card.style.fontFamily = 'monospace';
+  card.style.color = '#e7fff8';
+  card.style.textAlign = 'center';
+
+  const title = document.createElement('div');
+  title.textContent = 'Nuevo Record';
+  title.style.fontSize = '28px';
+  title.style.fontWeight = '700';
+  title.style.color = '#fff7b1';
+  title.style.marginBottom = '10px';
+
+  const subtitle = document.createElement('div');
+  subtitle.textContent = 'Ingresa tu nombre';
+  subtitle.style.fontSize = '15px';
+  subtitle.style.color = '#7af0ff';
+  subtitle.style.marginBottom = '16px';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 12;
+  input.placeholder = 'roman';
+  input.style.width = '100%';
+  input.style.boxSizing = 'border-box';
+  input.style.padding = '12px 14px';
+  input.style.fontFamily = 'monospace';
+  input.style.fontSize = '22px';
+  input.style.border = '2px solid #7af0ff';
+  input.style.background = '#081018';
+  input.style.color = '#f6ffb0';
+  input.style.outline = 'none';
+  input.autocomplete = 'off';
+
+  const help = document.createElement('div');
+  help.textContent = 'Presiona Enter o el boton guardar';
+  help.style.marginTop = '12px';
+  help.style.fontSize = '13px';
+  help.style.color = '#ffd06a';
+
+  const actions = document.createElement('div');
+  actions.style.marginTop = '16px';
+  actions.style.display = 'flex';
+  actions.style.gap = '10px';
+  actions.style.justifyContent = 'center';
+
+  const save = document.createElement('button');
+  save.textContent = 'Guardar';
+  save.style.padding = '10px 16px';
+  save.style.fontFamily = 'monospace';
+  save.style.fontSize = '16px';
+  save.style.fontWeight = '700';
+  save.style.border = '2px solid #b8ff6a';
+  save.style.background = '#182a38';
+  save.style.color = '#f6ffb0';
+  save.style.cursor = 'pointer';
+
+  actions.appendChild(save);
+  card.append(title, subtitle, input, help, actions);
+  wrap.appendChild(card);
+  root.appendChild(wrap);
+
+  s.nameUi = { wrap, input, save };
+  const submit = () => finishNameEntry(s);
+  save.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submit();
+  });
+  s.events.once('shutdown', () => {
+    wrap.remove();
+  });
 }
 
 function addText(s, x, y, t, size, color, align, bold) {
@@ -214,14 +345,18 @@ function showMenu(s) {
   s.beams.length = 0;
   s.crosshair.setVisible(true);
   setHudAlpha(s, 1);
+  hideNameInput(s);
   s.menu.setVisible(true);
   s.over.setVisible(false);
   s.pauseText.setVisible(false);
-  const best = s.state.hi[0] || 0;
-  const lines = ['TOP 5'];
-  for (let i = 0; i < MAX_HIGH_SCORES; i += 1) lines.push((i + 1) + '. ' + String(s.state.hi[i] || 0).padStart(4, '0'));
-  s.menuInfo.setText('CAZA RAPIDA DE PALOMAS NEON. NO DEJES ESCAPAR ' + MAX_ESCAPES + '.');
-  s.menuHigh.setText('RECORD ' + String(best).padStart(4, '0') + '\n\n' + lines.join('\n'));
+  const best = s.state.hi[0] ? s.state.hi[0].score : 0;
+  const lines = ['TOP 5 BUILD'];
+  for (let i = 0; i < MAX_HIGH_SCORES; i += 1) {
+    const row = s.state.hi[i];
+    lines.push((i + 1) + '. ' + (row ? row.name : '---') + '  ' + String(row ? row.score : 0).padStart(4, '0'));
+  }
+  s.menuInfo.setText('BUG HUNT NEON. NO DEJES FILTRAR MAS DE ' + MAX_ESCAPES + ' LEAKS.');
+  s.menuHigh.setText('BEST BUILD ' + String(best).padStart(4, '0') + '\n\n' + lines.join('\n'));
   refreshHud(s);
 }
 
@@ -235,9 +370,10 @@ function startRun(s, time) {
   s.state.combo = 0;
   s.state.bestCombo = 0;
   s.state.escapes = 0;
-  s.state.timeLeft = ROUND_TIME;
+  s.state.elapsed = 0;
   s.state.focus = 100;
   s.state.flashAt = 0;
+  s.state.focusLock = false;
   s.state.pauseLocked = false;
   s.state.spawnAt = time + 400;
   s.crosshair.setVisible(true);
@@ -247,7 +383,6 @@ function startRun(s, time) {
 }
 
 function endRun(s) {
-  s.state.phase = 'over';
   s.state.lastScore = s.state.score;
   s.targets.forEach(killTarget);
   s.targets.length = 0;
@@ -256,17 +391,21 @@ function endRun(s) {
   s.crosshair.setVisible(false);
   setHudAlpha(s, 0.12);
   const acc = s.state.shots ? Math.round((100 * s.state.hits) / s.state.shots) : 0;
-  s.state.hi = keepScores(s.state.hi, s.state.score);
-  saveScores(s);
-  s.overScore.setText(
-    'PUNTAJE ' + String(s.state.score).padStart(4, '0') +
-    '\nPRECISION ' + acc + '%' +
-    '\nMEJOR RACHA X' + s.state.bestCombo +
-    '\nESCAPES ' + s.state.escapes + '/' + MAX_ESCAPES
-  );
-  const lines = ['TOP 5'];
-  for (let i = 0; i < MAX_HIGH_SCORES; i += 1) lines.push((i + 1) + '. ' + String(s.state.hi[i] || 0).padStart(4, '0'));
-  s.overTable.setText(lines.join('\n'));
+  const summary =
+    'BUILD SCORE ' + String(s.state.score).padStart(4, '0') +
+    '\nPATCH RATE ' + acc + '%' +
+    '\nBEST CHAIN X' + s.state.bestCombo +
+    '\nUPTIME ' + Math.floor(s.state.elapsed) + 's' +
+    '\nLEAKS ' + s.state.escapes + '/' + MAX_ESCAPES;
+  if (qualifiesForHighScore(s.state.hi, s.state.score)) {
+    s.state.phase = 'naming';
+    s.state.pendingSummary = summary;
+    showNameInput(s);
+    return;
+  }
+  s.state.phase = 'over';
+  s.overScore.setText(summary);
+  s.overTable.setText(formatHighScoreTable(s.state.hi));
   s.over.setVisible(true);
 }
 
@@ -283,10 +422,10 @@ function setHudAlpha(s, alpha) {
 }
 
 function refreshHud(s) {
-  s.scoreText.setText('SCORE ' + String(s.state.score).padStart(4, '0'));
-  s.comboText.setText('COMBO X' + Math.max(1, s.state.combo));
-  s.timeText.setText('TIME ' + Math.ceil(s.state.timeLeft));
-  s.escapeText.setText('FLY ' + s.state.escapes + '/' + MAX_ESCAPES);
+  s.scoreText.setText('BUILD ' + String(s.state.score).padStart(4, '0'));
+  s.comboText.setText('CHAIN X' + Math.max(1, s.state.combo));
+  s.timeText.setText('UPTIME ' + Math.floor(s.state.elapsed));
+  s.escapeText.setText('LEAKS ' + s.state.escapes + '/' + MAX_ESCAPES);
   s.focusFill.width = 1.2 * s.state.focus;
   s.focusFill.fillColor = s.state.focus > 35 ? 0x7af0ff : 0xff8c78;
   s.flash.alpha = Math.max(0, s.flash.alpha - 0.05);
@@ -305,7 +444,7 @@ function spawnTarget(s, time) {
     s.state.spawnAt = time + Phaser.Math.Between(240, 380);
     return;
   }
-  const elapsed = ROUND_TIME - s.state.timeLeft;
+  const elapsed = s.state.elapsed;
   const left = Math.random() > 0.5;
   const y = Phaser.Math.Between(120, 410);
   const typeRoll = Math.random();
@@ -319,24 +458,37 @@ function spawnTarget(s, time) {
   const amp = type === 'storm' ? Phaser.Math.Between(8, 18) : type === 'swift' ? Phaser.Math.Between(16, 40) : Phaser.Math.Between(10, 28);
   const body = s.add.container(left ? -60 : 860, y);
   const tint = type === 'storm' ? 0xff6a8f : type === 'gold' ? 0xffcf5a : type === 'swift' ? 0x7af0ff : 0xe6f3ff;
-  const wing = type === 'storm' ? 0x51162c : type === 'gold' ? 0xff9f43 : 0x182a38;
-  const w = type === 'storm' ? 62 : type === 'swift' ? 34 : 42;
-  const h = type === 'storm' ? 30 : type === 'swift' ? 18 : 22;
-  body.add(s.add.ellipse(-2, 0, w, h, tint, 1));
-  body.add(s.add.circle(type === 'storm' ? 20 : 15, type === 'storm' ? -10 : -8, type === 'storm' ? 12 : 8, tint, 1));
-  body.add(s.add.triangle(-12, -4, -18, 0, -42, -12, -10, -12, wing, 0.95));
-  body.add(s.add.triangle(-12, 5, -18, 0, -42, 12, -10, 12, wing, 0.95));
-  body.add(s.add.triangle(type === 'storm' ? 34 : 24, -7, 0, 0, 10, -2, 0, -12, 0xff7b5a, 1));
-  body.add(s.add.circle(-16, -3, 2, 0x081018, 1));
+  const shell = type === 'storm' ? 0x34111f : type === 'gold' ? 0x44391c : type === 'swift' ? 0x133c50 : 0x182a38;
+  const bodyW = type === 'storm' ? 60 : type === 'swift' ? 38 : 44;
+  const bodyH = type === 'storm' ? 30 : type === 'swift' ? 20 : 22;
+  const core = s.add.ellipse(-4, 0, bodyW, bodyH, tint, 1).setStrokeStyle(2, shell, 0.95);
+  const head = s.add.circle(type === 'storm' ? 19 : 15, type === 'storm' ? -10 : -8, type === 'storm' ? 12 : 9, tint, 1).setStrokeStyle(2, shell, 0.95);
+  const wingColor = type === 'storm' ? 0x6e2941 : type === 'gold' ? 0xffd36e : type === 'swift' ? 0x5dc8e8 : 0xb9d2df;
+  const wingTop = s.add.triangle(-6, -4, -10, -1, -28, -11, 2, -5, wingColor, 0.98)
+    .setStrokeStyle(1, shell, 0.45);
+  const wingBottom = s.add.triangle(-6, 4, -10, 1, -28, 11, 2, 5, wingColor, 0.98)
+    .setStrokeStyle(1, shell, 0.45);
+  const tail = s.add.triangle(type === 'storm' ? 35 : 26, 0, 0, 0, 0, -10, 12, 0, 0xff7b5a, 1);
+  const eye = s.add.circle(type === 'storm' ? 21 : 16, type === 'storm' ? -12 : -9, 2.4, 0x081018, 1);
+  const plate = s.add.rectangle(type === 'storm' ? -7 : -5, 0, type === 'storm' ? 26 : 20, type === 'storm' ? 16 : 12, 0x081018, type === 'storm' ? 0.82 : 0.74);
+  const icon = s.add.text(type === 'storm' ? -7 : -5, 0, type === 'storm' ? 'AI' : type === 'gold' ? '$' : type === 'swift' ? '>>' : '<>', {
+    fontFamily: 'monospace',
+    fontSize: type === 'storm' ? '12px' : '10px',
+    color: type === 'storm' ? '#fff2a8' : type === 'gold' ? '#ffe9a0' : '#d9fbff',
+    fontStyle: 'bold',
+  }).setOrigin(0.5);
+  body.add([wingTop, wingBottom, core, head, tail, eye, plate, icon]);
+  let halo = null;
+  let shield = null;
   if (type === 'storm') {
-    body.add(s.add.circle(-2, 0, 32, 0x000000, 0).setStrokeStyle(3, 0xffb2c4, 0.9));
-    const shield = s.add.text(-2, -40, '3', {
+    halo = s.add.circle(-4, 0, 34, 0x000000, 0).setStrokeStyle(3, 0xffb2c4, 0.9);
+    shield = s.add.text(-4, -40, '3', {
       fontFamily: 'monospace',
       fontSize: '18px',
       color: '#fff2a8',
       fontStyle: 'bold',
     }).setOrigin(0.5);
-    body.add(shield);
+    body.add([halo, shield]);
   }
   body.setDepth(10);
   s.targetLayer.add(body);
@@ -356,6 +508,11 @@ function spawnTarget(s, time) {
     maxHp: hp,
     value: type === 'storm' ? 120 : type === 'gold' ? 75 : type === 'swift' ? 35 : 20,
     radius: type === 'storm' ? 30 : type === 'swift' ? 18 : 22,
+    wingTop,
+    wingBottom,
+    halo,
+    shield,
+    icon,
   });
   const pressure = Math.min(1, elapsed / 45);
   const introBonus = elapsed < START_GRACE ? (START_GRACE - elapsed) * 160 : 0;
@@ -381,10 +538,11 @@ function stepTargets(s, dt, time) {
     t.body.y = t.y;
     t.body.scaleX = t.dir;
     t.body.rotation = Math.sin(age * 10 + t.flap) * 0.06;
-    t.body.list[2].rotation = Math.sin(age * 16) * 0.35;
-    t.body.list[3].rotation = -Math.sin(age * 16) * 0.35;
+    t.wingTop.rotation = Math.sin(age * 16) * 0.35;
+    t.wingBottom.rotation = -Math.sin(age * 16) * 0.35;
+    t.icon.alpha = 0.78 + Math.sin(age * 7 + t.flap) * 0.18;
     if (t.type === 'storm') {
-      t.body.list[6].alpha = 0.5 + Math.sin(age * 8) * 0.2;
+      t.halo.alpha = 0.5 + Math.sin(age * 8) * 0.2;
     }
     if (t.x < -90 || t.x > 890) {
       s.targets.splice(i, 1);
@@ -416,11 +574,10 @@ function shoot(s, time) {
     s.state.hits += 1;
     if (hit.type === 'storm' && hit.hp > 1) {
       hit.hp -= 1;
-      const shield = hit.body.list[7];
-      if (shield) shield.setText(String(hit.hp));
+      if (hit.shield) hit.shield.setText(String(hit.hp));
       pulseHud(s, '#ff9db7');
       tone(s, 320, 0.08, 'sawtooth');
-      popScore(s, hit.x, hit.y - 26, 'HIT ' + hit.hp, '#fff2a8');
+      popScore(s, hit.x, hit.y - 26, 'PATCH ' + hit.hp, '#fff2a8');
       for (let i = 0; i < 3; i += 1) {
         const p = s.add.circle(hit.x, hit.y, Phaser.Math.Between(4, 8), 0xffb2c4);
         p.vx = Phaser.Math.Between(-120, 120);
@@ -436,7 +593,7 @@ function shoot(s, time) {
     s.state.bestCombo = Math.max(s.state.bestCombo, s.state.combo);
     const gain = hit.value + (s.state.combo - 1) * 4;
     s.state.score += gain;
-    popScore(s, hit.x, hit.y - 20, '+' + gain, hit.type === 'storm' ? '#ffb2c4' : hit.type === 'gold' ? '#ffd06a' : '#e2fff8');
+    popScore(s, hit.x, hit.y - 20, (hit.type === 'storm' ? 'PURGE ' : 'FIX +') + gain, hit.type === 'storm' ? '#ffb2c4' : hit.type === 'gold' ? '#ffd06a' : '#e2fff8');
     if (hit.type === 'storm') {
       clearScreenBlast(s, hit, time);
       pulseHud(s, '#ff6a8f');
@@ -493,6 +650,21 @@ function explodeTarget(s, t) {
     s.fxLayer.add(p);
     s.shards.push(p);
   }
+  for (let i = 0; i < 2; i += 1) {
+    const p = s.add.text(t.x, t.y, CODE_BITS[Phaser.Math.Between(0, CODE_BITS.length - 1)], {
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      color: t.type === 'storm' ? '#ffb2c4' : t.type === 'gold' ? '#ffd06a' : '#7af0ff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    p.vx = Phaser.Math.Between(-90, 90);
+    p.vy = Phaser.Math.Between(-180, 20);
+    p.life = p.maxLife = 0.38 + Math.random() * 0.18;
+    p.spin = Phaser.Math.FloatBetween(-2, 2);
+    p.label = true;
+    s.fxLayer.add(p);
+    s.shards.push(p);
+  }
 }
 
 function clearScreenBlast(s, boss, time) {
@@ -511,7 +683,7 @@ function clearScreenBlast(s, boss, time) {
     s.state.bestCombo = Math.max(s.state.bestCombo, s.state.combo);
     const gain = t.value + (s.state.combo - 1) * 4;
     s.state.score += gain;
-    popScore(s, t.x, t.y - 20, '+' + gain, t.type === 'gold' ? '#ffd06a' : '#e2fff8');
+    popScore(s, t.x, t.y - 20, 'FIX +' + gain, t.type === 'gold' ? '#ffd06a' : '#e2fff8');
     explodeTarget(s, t);
     const idx = s.targets.indexOf(t);
     if (idx >= 0) s.targets.splice(idx, 1);
@@ -551,18 +723,67 @@ function killTarget(t) {
   t.body.destroy();
 }
 
-function keepScores(list, score) {
-  const next = Array.isArray(list) ? list.filter((n) => Number.isFinite(n) && n >= 0) : [];
-  next.push(score);
-  next.sort((a, b) => b - a);
+function normalizeScoreEntry(v) {
+  if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return { name: 'CPU', score: v };
+  if (!v || typeof v !== 'object') return null;
+  const score = Number(v.score);
+  if (!Number.isFinite(score) || score < 0) return null;
+  const raw = typeof v.name === 'string' ? v.name.replace(/\s+/g, ' ').trim().slice(0, 12) : 'CPU';
+  return { name: raw || 'CPU', score };
+}
+
+function keepScores(list, entry) {
+  const next = Array.isArray(list) ? list.map(normalizeScoreEntry).filter(Boolean) : [];
+  const row = normalizeScoreEntry(entry);
+  if (row) next.push(row);
+  next.sort((a, b) => b.score - a.score);
   return next.slice(0, MAX_HIGH_SCORES);
+}
+
+function qualifiesForHighScore(list, score) {
+  const rows = keepScores(list);
+  return rows.length < MAX_HIGH_SCORES || score > rows[rows.length - 1].score;
+}
+
+function formatHighScoreTable(list) {
+  const rows = keepScores(list);
+  const out = ['TOP 5 BUILD'];
+  for (let i = 0; i < MAX_HIGH_SCORES; i += 1) {
+    const row = rows[i];
+    out.push((i + 1) + '. ' + (row ? row.name.padEnd(12, ' ') : '------------') + ' ' + String(row ? row.score : 0).padStart(4, '0'));
+  }
+  return out.join('\n');
+}
+
+function showNameInput(s) {
+  if (!s.nameUi) return;
+  s.nameUi.wrap.style.display = 'flex';
+  s.nameUi.input.value = '';
+  setTimeout(() => s.nameUi && s.nameUi.input.focus(), 0);
+}
+
+function hideNameInput(s) {
+  if (!s.nameUi) return;
+  s.nameUi.wrap.style.display = 'none';
+}
+
+function finishNameEntry(s) {
+  if (!s.nameUi || s.state.phase !== 'naming') return;
+  const clean = s.nameUi.input.value.replace(/\s+/g, ' ').trim().slice(0, 12) || 'CPU';
+  s.state.hi = keepScores(s.state.hi, { name: clean, score: s.state.score });
+  saveScores(s);
+  hideNameInput(s);
+  s.state.phase = 'over';
+  s.overScore.setText(s.state.pendingSummary || '');
+  s.overTable.setText(formatHighScoreTable(s.state.hi));
+  s.over.setVisible(true);
 }
 
 async function loadScores(s) {
   try {
     if (!window.platanusArcadeStorage) return;
     const result = await window.platanusArcadeStorage.get(STORAGE_KEY);
-    if (result && result.found && Array.isArray(result.value)) s.state.hi = keepScores(result.value, 0).filter((n) => n > 0);
+    if (result && result.found && Array.isArray(result.value)) s.state.hi = keepScores(result.value);
   } catch (_) {}
 }
 

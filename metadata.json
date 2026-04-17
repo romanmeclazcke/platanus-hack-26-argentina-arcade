@@ -1,5 +1,5 @@
 {
-  "game_name": "Paloma Panic",
-  "description": "Arcade shooter de reflejos rapidos: caza palomas neon sobre Buenos Aires, activa enfoque temporal y encadena combos antes de que escapen.",
+  "game_name": "Paloma Panic // Prod Panic",
+  "description": "Arcade shooter de reflejos rapidos: defende el deploy de Buenos Aires, patchea palomas-bug neon, activa debug mode y encadena fixes antes de que se filtren leaks.",
   "player_mode": "single_player"
 }
