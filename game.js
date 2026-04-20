@@ -72,6 +72,8 @@ function create() {
     focusOn: false,
     focusLock: false,
     pauseLocked: false,
+    startAt: 0,
+    startUntil: 0,
     lastScore: 0,
     hi: [],
   };
@@ -111,6 +113,18 @@ function update(time, delta) {
 
   updateCrosshair(s, dt);
   updateSkyline(s, time);
+  if (s.state.phase === 'play' && time < s.state.startUntil) {
+    const p = 1 - (s.state.startUntil - time) / Math.max(1, s.state.startUntil - s.state.startAt);
+    s.flash.alpha = Math.max(s.flash.alpha, 0.34 * (1 - p));
+    s.startText.setVisible(true);
+    s.startText.alpha = 1 - p;
+    s.startText.setScale(0.9 + p * 0.2);
+    s.crosshair.setScale(1.2 - p * 0.2);
+    setHudAlpha(s, 0.55 + p * 0.45);
+  } else if (s.state.phase === 'play') {
+    s.startText.setVisible(false);
+    s.crosshair.setScale(1);
+  }
 
   if (consumeAnyPressedControl(s, ['START1'])) {
     s.state.pauseLocked = !s.state.pauseLocked;
@@ -139,6 +153,11 @@ function update(time, delta) {
   s.state.elapsed += dt;
   if (s.state.escapes >= MAX_ESCAPES) {
     return endRun(s);
+  }
+
+  if (time < s.state.startUntil) {
+    refreshHud(s);
+    return;
   }
 
   if (time >= s.state.spawnAt) spawnTarget(s, time);
@@ -235,7 +254,7 @@ function buildScene(s) {
   s.hudTop = s.add.rectangle(400, 42, 748, 44, 0x03070c, 0.78).setStrokeStyle(2, 0x9fffe0, 0.35);
   s.scoreText = addText(s, 44, 32, 'BUILD 0000', 22, '#f6ffb0', 'left');
   s.comboText = addText(s, 284, 32, 'CHAIN X1', 22, '#7af0ff', 'left');
-  s.timeText = addText(s, 520, 32, 'UPTIME 0', 22, '#ffd06a', 'left');
+  s.timeText = addText(s, 500, 32, 'UPTIME 0', 22, '#ffd06a', 'left');
   s.escapeText = addText(s, 648, 32, 'LEAKS 0/7', 22, '#ff8c78', 'left');
   s.focusLabel = addText(s, 44, 64, 'SLOWMO', 14, '#c6fff7', 'left');
   s.focusBar = s.add.rectangle(126, 72, 120, 10, 0x17344b).setOrigin(0, 0.5).setStrokeStyle(2, 0x7af0ff, 0.4);
@@ -259,26 +278,34 @@ function buildScene(s) {
   s.crosshair.add(s.add.circle(0, 0, 3, 0xff6a3d, 1));
   s.crosshair.setDepth(20);
 
-  s.gun = s.add.container(400, 550).setDepth(19);
-  const gunShadow = s.add.ellipse(0, 17, 90, 12, 0x05090d, 0.18);
-  const stockBack = s.add.rectangle(-31, 2, 14, 12, 0x6f3142, 1);
-  const stockMid = s.add.rectangle(-22, 0, 16, 16, 0x91475a, 1);
-  const stockTip = s.add.rectangle(-12, -2, 12, 12, 0xc36c5f, 1);
-  const receiver = s.add.rectangle(6, -2, 34, 16, 0x4b4f86, 1).setStrokeStyle(2, 0x182a38, 0.8);
-  const receiverTop = s.add.rectangle(1, -11, 18, 4, 0x747ab3, 1);
-  const glow = s.add.rectangle(4, -2, 12, 6, 0x7af0ff, 0.42);
-  const trigger = s.add.arc(-4, 8, 7, Phaser.Math.DegToRad(15), Phaser.Math.DegToRad(165), false, 0xdde8f0, 1)
-    .setStrokeStyle(2, 0x182a38, 0.8);
-  const grip = s.add.triangle(-4, 14, -7, -2, 8, -2, -1, 18, 0x5f273a, 1).setStrokeStyle(2, 0x182a38, 0.7);
-  const gunBarrel = s.add.container(18, -2);
-  gunBarrel.add(s.add.rectangle(12, 0, 28, 8, 0xdbe6ef, 1).setStrokeStyle(2, 0x182a38, 0.8));
-  gunBarrel.add(s.add.rectangle(25, 0, 12, 6, 0xb7c6d0, 1));
-  gunBarrel.add(s.add.rectangle(35, 0, 8, 10, 0xff9a62, 1));
-  gunBarrel.add(s.add.rectangle(0, 0, 10, 12, 0x90a7c0, 1));
+  s.gun = s.add.container(400, 548).setDepth(19);
+  const gunShadow = s.add.ellipse(0, 18, 84, 10, 0x05090d, 0.14);
+  const stockBack = s.add.rectangle(-30, 3, 14, 12, 0x6a2e42, 1);
+  const stockMid = s.add.rectangle(-20, 0, 14, 16, 0x8f4560, 1);
+  const stockTip = s.add.rectangle(-10, -2, 10, 12, 0xc26b60, 1);
+  const receiver = s.add.rectangle(3, -2, 28, 14, 0x4c5087, 1).setStrokeStyle(2, 0x182a38, 0.82);
+  const receiverFace = s.add.rectangle(-1, -2, 10, 8, 0x747ab3, 1);
+  const sight = s.add.rectangle(2, -11, 14, 3, 0x95a6ca, 1);
+  const glow = s.add.rectangle(1, -2, 8, 4, 0x7af0ff, 0.42);
+  const trigger = s.add.arc(-5, 8, 5, Phaser.Math.DegToRad(18), Phaser.Math.DegToRad(170), false, 0xdde8f0, 1)
+    .setStrokeStyle(2, 0x182a38, 0.75);
+  const grip = s.add.triangle(-6, 13, -6, -2, 8, -2, -1, 17, 0x5a2337, 1).setStrokeStyle(2, 0x182a38, 0.72);
+  const gunBarrel = s.add.container(16, -2);
+  gunBarrel.add(s.add.rectangle(10, 0, 20, 6, 0xdbe6ef, 1).setStrokeStyle(2, 0x182a38, 0.8));
+  gunBarrel.add(s.add.rectangle(21, 0, 10, 4, 0xb7c6d0, 1));
+  gunBarrel.add(s.add.rectangle(28, 0, 6, 8, 0xff9a62, 1));
+  gunBarrel.add(s.add.rectangle(-1, 0, 8, 10, 0x90a7c0, 1));
+  const muzzleFlash = s.add.star(31, 0, 5, 3, 8, 0xfff0b0, 1).setScale(0).setAlpha(0);
+  gunBarrel.add(muzzleFlash);
   s.gun.barrel = gunBarrel;
-  s.gun.add([gunShadow, stockBack, stockMid, stockTip, receiver, receiverTop, glow, trigger, grip, gunBarrel]);
+  s.gun.flash = muzzleFlash;
+  s.gun.kick = 0;
+  s.gun.add([gunShadow, stockBack, stockMid, stockTip, receiver, receiverFace, sight, glow, trigger, grip, gunBarrel]);
 
   s.flash = s.add.rectangle(400, 300, 800, 600, 0xfff4cc, 0).setDepth(30);
+  s.startText = addText(s, 400, 248, 'DEPLOY!', 30, '#f6ffb0', 'center', true)
+    .setDepth(32)
+    .setVisible(false);
   s.pauseText = addText(s, 400, 286, 'PAUSA\nENTER CONTINUA\nI TERMINA PARTIDA', 28, '#ffffff', 'center')
     .setDepth(40)
     .setVisible(false);
@@ -289,9 +316,10 @@ function buildScene(s) {
   s.menu.add(addText(s, 400, 132, 'PROD PANIC', 24, '#ff8c78', 'center', true));
   s.menu.add(addText(s, 400, 168, 'DEFENDE EL DEPLOY DE BUENOS AIRES', 16, '#7af0ff', 'center', true));
   s.menuInfo = addText(s, 400, 202, '', 18, '#e2fff8', 'center');
+  s.menuDesc = addText(s, 400, 238, '', 15, '#d8fff6', 'center');
   s.menuHelp = addText(s, 400, 504, 'PATCHEA BUGS VOLADORES. ENTER O U PARA DEPLOY.', 16, '#ffd06a', 'center');
-  s.menuHigh = addText(s, 400, 280, '', 18, '#d8fff6', 'center');
-  s.menu.add([s.menuInfo, s.menuHelp, s.menuHigh]);
+  s.menuHigh = addText(s, 400, 330, '', 18, '#d8fff6', 'center');
+  s.menu.add([s.menuInfo, s.menuDesc, s.menuHelp, s.menuHigh]);
 
   s.over = s.add.container(0, 0).setDepth(55).setVisible(false);
   s.over.add(s.add.rectangle(400, 300, 800, 600, 0x02050a, 0.94));
@@ -411,6 +439,7 @@ function showMenu(s) {
   s.beams.forEach((b) => b.line.destroy());
   s.beams.length = 0;
   s.crosshair.setVisible(true);
+  s.startText.setVisible(false);
   setHudAlpha(s, 1);
   hideNameInput(s);
   s.menu.setVisible(true);
@@ -423,6 +452,11 @@ function showMenu(s) {
     lines.push((i + 1) + '. ' + (row ? row.name : '---') + '  ' + String(row ? row.score : 0).padStart(4, '0'));
   }
   s.menuInfo.setText('BUG HUNT NEON. NO DEJES FILTRAR MAS DE ' + MAX_ESCAPES + ' LEAKS.');
+  s.menuDesc.setText(
+    'MUEVE LA MIRA CON P1 CURSOR\n' +
+    'DISPARA CON U Y USA I PARA SLOWMO\n' +
+    'PALOMAS ESPECIALES DAN MAS PUNTOS, PERO SI ESCAPAN SUMAN LEAKS'
+  );
   s.menuHigh.setText('BEST BUILD ' + String(best).padStart(4, '0') + '\n\n' + lines.join('\n'));
   refreshHud(s);
 }
@@ -442,10 +476,17 @@ function startRun(s, time) {
   s.state.flashAt = 0;
   s.state.focusLock = false;
   s.state.pauseLocked = false;
+  s.state.startAt = time;
+  s.state.startUntil = time + 550;
   s.state.spawnAt = time + 400;
   s.crosshair.setVisible(true);
-  setHudAlpha(s, 1);
+  s.startText.setVisible(true);
+  s.startText.alpha = 1;
+  s.startText.setScale(0.9);
+  s.flash.alpha = 0.34;
+  setHudAlpha(s, 0.55);
   s.crosshair.setPosition(400, 320);
+  s.crosshair.setScale(1.2);
   refreshHud(s);
 }
 
@@ -456,6 +497,7 @@ function endRun(s) {
   s.beams.forEach((b) => b.line.destroy());
   s.beams.length = 0;
   s.crosshair.setVisible(false);
+  s.startText.setVisible(false);
   setHudAlpha(s, 0.12);
   const acc = s.state.shots ? Math.round((100 * s.state.hits) / s.state.shots) : 0;
   const summary =
@@ -504,6 +546,10 @@ function updateCrosshair(s, dt) {
   const y = (isControlDown(s, 'P1_D') ? 1 : 0) - (isControlDown(s, 'P1_U') ? 1 : 0);
   s.crosshair.x = Phaser.Math.Clamp(s.crosshair.x + x * speed, 40, 760);
   s.crosshair.y = Phaser.Math.Clamp(s.crosshair.y + y * speed, 70, 540);
+  s.gun.kick = Math.max(0, s.gun.kick - dt * 7);
+  s.gun.barrel.x = 18 - s.gun.kick * 8;
+  s.gun.flash.alpha = s.gun.kick > 0 ? s.gun.kick * 1.8 : 0;
+  s.gun.flash.setScale(0.2 + s.gun.kick * 1.2);
   s.gun.barrel.rotation = Phaser.Math.Clamp(Phaser.Math.Angle.Between(s.gun.x + 12, s.gun.y - 1, s.crosshair.x, s.crosshair.y), -2.05, -1.15);
 }
 
@@ -517,7 +563,7 @@ function spawnTarget(s, time) {
   const y = Phaser.Math.Between(120, 410);
   const typeRoll = Math.random();
   let type = 'pigeon';
-  if (elapsed > 24 && typeRoll > 0.986) type = 'storm';
+  if (elapsed > 22 && typeRoll > 0.972) type = 'storm';
   else if (elapsed > 14 && typeRoll > 0.93) type = 'gold';
   else if (elapsed > START_GRACE && typeRoll > 0.8) type = 'swift';
   const dir = left ? 1 : -1;
@@ -548,7 +594,11 @@ function spawnTarget(s, time) {
     .setStrokeStyle(1, shell, 0.22);
   const eyeWhite = s.add.circle(headX + (type === 'storm' ? 2 : 1), headY - 2, type === 'storm' ? 3.2 : 2.5, 0xffffff, 1);
   const eye = s.add.circle(headX + (type === 'storm' ? 3 : 2), headY - 2, 1.4, 0x081018, 1);
-  body.add([tailBottom, tailTop, wingBottom, core, belly, wingTop, neck, head, beak, eyeWhite, eye]);
+  let accent = null;
+  if (type === 'gold') accent = s.add.circle(-4, 0, bodyW * 0.38, 0xfff0b0, 0.16).setStrokeStyle(2, 0xffcf5a, 0.5);
+  else if (type === 'swift') accent = s.add.line(-24, 0, 0, 0, -18, 0, 0x9ff6ff, 0.9).setLineWidth(2, 6);
+  else if (type === 'storm') accent = s.add.ellipse(-6, 0, bodyW * 0.9, bodyH * 0.8, 0xff7aa3, 0.08).setStrokeStyle(2, 0xffb2c4, 0.22);
+  body.add([tailBottom, tailTop, accent, wingBottom, core, belly, wingTop, neck, head, beak, eyeWhite, eye].filter(Boolean));
   let halo = null;
   let shield = null;
   if (type === 'storm') {
@@ -581,6 +631,7 @@ function spawnTarget(s, time) {
     radius: type === 'storm' ? 30 : type === 'swift' ? 18 : 22,
     wingTop,
     wingBottom,
+    accent,
     halo,
     shield,
   });
@@ -610,6 +661,14 @@ function stepTargets(s, dt, time) {
     t.body.rotation = Math.sin(age * 10 + t.flap) * 0.06;
     t.wingTop.rotation = Math.sin(age * 16) * 0.35;
     t.wingBottom.rotation = -Math.sin(age * 16) * 0.35;
+    if (t.accent) {
+      if (t.type === 'gold') t.accent.alpha = 0.12 + 0.08 * (0.5 + 0.5 * Math.sin(age * 8 + t.flap));
+      else if (t.type === 'swift') {
+        t.accent.alpha = 0.35 + 0.3 * (0.5 + 0.5 * Math.sin(age * 14 + t.flap));
+        t.accent.scaleX = 0.9 + 0.4 * (0.5 + 0.5 * Math.sin(age * 10 + t.flap));
+      } else if (t.type === 'storm') t.accent.alpha = 0.05 + 0.08 * (0.5 + 0.5 * Math.sin(age * 9 + t.flap));
+    }
+    t.body.alpha = 1;
     if (t.type === 'storm') {
       t.halo.alpha = 0.5 + Math.sin(age * 8) * 0.2;
     }
@@ -627,9 +686,7 @@ function stepTargets(s, dt, time) {
 function shoot(s, time) {
   s.state.shots += 1;
   s.flash.alpha = 0.12;
-  const line = s.add.line(s.crosshair.x, s.crosshair.y, 0, 0, 0, -660, 0xfff4cc, 0.9).setLineWidth(3, 1).setRotation(-0.06 + Math.random() * 0.12).setDepth(18);
-  s.fxLayer.add(line);
-  s.beams.push({ line, die: time + 50 });
+  s.gun.kick = 1;
   let hit = null;
   let best = 1e9;
   for (const t of s.targets) {
@@ -672,7 +729,7 @@ function shoot(s, time) {
     } else {
       explodeTarget(s, hit);
       pulseHud(s, hit.type === 'gold' ? '#ffd06a' : '#7af0ff');
-      tone(s, hit.type === 'gold' ? 780 : 560 + Math.min(220, s.state.combo * 12), 0.06, 'square');
+      weaponBlast(s, hit.type === 'gold' ? 820 : 640 + Math.min(180, s.state.combo * 10), hit.type === 'gold' ? 0.08 : 0.065);
     }
     const idx = s.targets.indexOf(hit);
     if (idx >= 0) s.targets.splice(idx, 1);
@@ -949,6 +1006,25 @@ function consumeAnyPressedControl(s, codes) {
 function normalizeIncomingKey(key) {
   if (!key || typeof key !== 'string') return '';
   return key.length === 1 ? key.toLowerCase() : key;
+}
+
+function weaponBlast(s, freq, dur) {
+  const ctx = s.sound && s.sound.context;
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(freq, now);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(120, freq * 0.38), now + dur);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.08, now + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.012, now + dur * 0.45);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + dur + 0.02);
 }
 
 function tone(s, freq, dur, type) {
