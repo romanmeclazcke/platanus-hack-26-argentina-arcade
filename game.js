@@ -178,10 +178,47 @@ function buildScene(s) {
   }
 
   const obX = 468;
-  s.add.rectangle(obX, 414, 40, 12, 0x11283a, 0.36);
-  s.add.rectangle(obX, 322, 18, 170, 0x1b3447, 0.46);
-  s.add.rectangle(obX + 3, 322, 6, 162, 0x5e7a8d, 0.12);
-  s.add.triangle(obX, 218, -9, 20, 9, 20, 0, -22, 0x1b3447, 0.46);
+  s.add.rectangle(obX, 432, 40, 10, 0x11283a, 0.42);
+  const ob = s.add.graphics();
+  ob.fillStyle(0x1f3d54, 0.56);
+  ob.beginPath();
+  ob.moveTo(obX - 20, 438);
+  ob.lineTo(obX - 20, 428);
+  ob.lineTo(obX - 12, 428);
+  ob.lineTo(obX - 12, 270);
+  ob.lineTo(obX - 8, 242);
+  ob.lineTo(obX, 232);
+  ob.lineTo(obX + 8, 242);
+  ob.lineTo(obX + 12, 270);
+  ob.lineTo(obX + 12, 428);
+  ob.lineTo(obX + 20, 428);
+  ob.lineTo(obX + 20, 438);
+  ob.closePath();
+  ob.fillPath();
+
+  const obShade = s.add.graphics();
+  obShade.fillStyle(0x11283a, 0.22);
+  obShade.beginPath();
+  obShade.moveTo(obX - 20, 438);
+  obShade.lineTo(obX - 20, 428);
+  obShade.lineTo(obX - 12, 428);
+  obShade.lineTo(obX - 12, 270);
+  obShade.lineTo(obX - 6, 243);
+  obShade.lineTo(obX, 232);
+  obShade.lineTo(obX, 438);
+  obShade.closePath();
+  obShade.fillPath();
+
+  const obLight = s.add.graphics();
+  obLight.fillStyle(0xa9c3d2, 0.14);
+  obLight.beginPath();
+  obLight.moveTo(obX + 1, 237);
+  obLight.lineTo(obX + 5, 250);
+  obLight.lineTo(obX + 9, 270);
+  obLight.lineTo(obX + 9, 428);
+  obLight.lineTo(obX + 1, 428);
+  obLight.closePath();
+  obLight.fillPath();
 
 
   for (let y = 74; y < 600; y += 6) {
