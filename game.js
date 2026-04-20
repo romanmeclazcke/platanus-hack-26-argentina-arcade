@@ -317,7 +317,7 @@ function buildScene(s) {
   s.menu.add(addText(s, 400, 168, 'DEFENDE EL DEPLOY DE BUENOS AIRES', 16, '#7af0ff', 'center', true));
   s.menuInfo = addText(s, 400, 202, '', 18, '#e2fff8', 'center');
   s.menuDesc = addText(s, 400, 238, '', 15, '#d8fff6', 'center');
-  s.menuHelp = addText(s, 400, 504, 'PATCHEA BUGS VOLADORES. ENTER O U PARA DEPLOY.', 16, '#ffd06a', 'center');
+  s.menuHelp = addText(s, 400, 504, 'PATCHEA BUGS VOLADORES. ENTER/U PARA DEPLOY.', 16, '#ffd06a', 'center');
   s.menuHigh = addText(s, 400, 330, '', 18, '#d8fff6', 'center');
   s.menu.add([s.menuInfo, s.menuDesc, s.menuHelp, s.menuHigh]);
 
