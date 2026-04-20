@@ -151,22 +151,31 @@ function update(time, delta) {
 
 function buildScene(s) {
   s.add.rectangle(400, 300, 800, 600, 0x07111f);
-  s.add.rectangle(400, 100, 800, 200, 0x0f2238, 0.85);
   s.add.circle(666, 92, 44, 0xffe38a, 0.92);
   s.add.circle(666, 92, 72, 0xffe38a, 0.12);
-  s.add.rectangle(400, 430, 800, 340, 0x10232f);
+  s.add.rectangle(400, 440, 800, 20, 0x46535c, 0.9);
+  s.add.rectangle(400, 431, 800, 2, 0x718791, 0.45);
+  s.add.rectangle(400, 449, 800, 2, 0x1b2429, 0.35);
   s.add.rectangle(400, 520, 800, 160, 0x162513);
   s.add.rectangle(400, 558, 800, 84, 0x254219);
 
   s.skyline = [];
+  s.skyWindows = [];
+  s.nextWindowShift = 0;
   const skyline = [44, 120, 72, 95, 58, 136, 84, 70, 110, 60, 92, 148, 76, 100];
   for (let i = 0; i < skyline.length; i += 1) {
     const x = 30 + i * 56;
     const h = skyline[i];
-    const b = s.add.rectangle(x, 430 - h / 2, 42, h, i % 2 ? 0x11293d : 0x17344b).setOrigin(0, 0.5);
+    const b = s.add.rectangle(x, 430 - h / 2, 42, h, i % 2 ? 0x193750 : 0x214560).setOrigin(0, 0.5);
     s.skyline.push(b);
     for (let y = 0; y < h - 16; y += 16) {
-      if ((i + y) % 3) s.add.rectangle(x + 8 + (y % 2) * 12, 430 - h + 16 + y, 6, 8, (i + y) % 4 ? 0x7af0ff : 0xb8ff6a, 0.38);
+      if ((i + y) % 3) {
+        const w = s.add.rectangle(x + 8 + (y % 2) * 12, 430 - h + 16 + y, 6, 8, (i + y) % 4 ? 0x7af0ff : 0xb8ff6a, 0.38);
+        w.baseAlpha = 0.08 + ((i + y) % 4) * 0.03;
+        w.litAlpha = w.baseAlpha + 0.24 + ((i + y) % 2) * 0.05;
+        w.lit = Math.random() > 0.72;
+        s.skyWindows.push(w);
+      }
     }
     if (i % 3 === 0) {
       s.add.text(x + 5, 430 - h + 10, i % 2 ? 'if' : '</>', {
@@ -178,34 +187,27 @@ function buildScene(s) {
   }
 
   const obX = 468;
-  s.add.rectangle(obX, 432, 40, 10, 0x11283a, 0.42);
   const ob = s.add.graphics();
   ob.fillStyle(0x1f3d54, 0.56);
   ob.beginPath();
-  ob.moveTo(obX - 20, 438);
-  ob.lineTo(obX - 20, 428);
-  ob.lineTo(obX - 12, 428);
+  ob.moveTo(obX - 12, 432);
   ob.lineTo(obX - 12, 270);
   ob.lineTo(obX - 8, 242);
   ob.lineTo(obX, 232);
   ob.lineTo(obX + 8, 242);
   ob.lineTo(obX + 12, 270);
-  ob.lineTo(obX + 12, 428);
-  ob.lineTo(obX + 20, 428);
-  ob.lineTo(obX + 20, 438);
+  ob.lineTo(obX + 12, 432);
   ob.closePath();
   ob.fillPath();
 
   const obShade = s.add.graphics();
   obShade.fillStyle(0x11283a, 0.22);
   obShade.beginPath();
-  obShade.moveTo(obX - 20, 438);
-  obShade.lineTo(obX - 20, 428);
-  obShade.lineTo(obX - 12, 428);
+  obShade.moveTo(obX - 12, 432);
   obShade.lineTo(obX - 12, 270);
   obShade.lineTo(obX - 6, 243);
   obShade.lineTo(obX, 232);
-  obShade.lineTo(obX, 438);
+  obShade.lineTo(obX, 432);
   obShade.closePath();
   obShade.fillPath();
 
@@ -215,10 +217,15 @@ function buildScene(s) {
   obLight.moveTo(obX + 1, 237);
   obLight.lineTo(obX + 5, 250);
   obLight.lineTo(obX + 9, 270);
-  obLight.lineTo(obX + 9, 428);
-  obLight.lineTo(obX + 1, 428);
+  obLight.lineTo(obX + 9, 432);
+  obLight.lineTo(obX + 1, 432);
   obLight.closePath();
   obLight.fillPath();
+
+  s.skyHaze = s.add.container(120, 132).setDepth(2);
+  s.skyHaze.add(s.add.ellipse(0, 0, 84, 22, 0x8fb3c8, 0.08));
+  s.skyHaze.add(s.add.ellipse(28, 4, 62, 18, 0xa8c4d4, 0.06));
+  s.skyHaze.add(s.add.ellipse(-24, 5, 54, 16, 0x8fb3c8, 0.05));
 
 
   for (let y = 74; y < 600; y += 6) {
@@ -235,18 +242,41 @@ function buildScene(s) {
   s.focusFill = s.add.rectangle(126, 72, 120, 10, 0x7af0ff).setOrigin(0, 0.5);
   s.statusText = addText(s, 400, 578, 'P1 CURSOR  U PATCH  I DEBUG  ENTER PAUSA', 14, '#d8fff6', 'center');
 
-  s.targetLayer = s.add.container(0, 0);
-  s.fxLayer = s.add.container(0, 0);
+  s.targetLayer = s.add.container(0, 0).setDepth(10);
+  s.fxLayer = s.add.container(0, 0).setDepth(18);
 
   s.crosshair = s.add.container(400, 320);
-  s.crosshair.add(s.add.circle(0, 0, 18, 0x000000, 0));
-  s.crosshair.add(s.add.circle(0, 0, 16, 0x000000, 0).setStrokeStyle(2, 0xf5ffe1, 1));
-  s.crosshair.add(s.add.line(0, 0, -24, 0, -8, 0, 0xf5ffe1, 1).setLineWidth(2, 2));
-  s.crosshair.add(s.add.line(0, 0, 8, 0, 24, 0, 0xf5ffe1, 1).setLineWidth(2, 2));
-  s.crosshair.add(s.add.line(0, 0, 0, -24, 0, -8, 0xf5ffe1, 1).setLineWidth(2, 2));
-  s.crosshair.add(s.add.line(0, 0, 0, 8, 0, 24, 0xf5ffe1, 1).setLineWidth(2, 2));
+  const crosshairShape = s.add.graphics();
+  crosshairShape.lineStyle(2, 0xf5ffe1, 1);
+  crosshairShape.strokeCircle(0, 0, 16);
+  crosshairShape.beginPath();
+  crosshairShape.moveTo(-9, 0);
+  crosshairShape.lineTo(9, 0);
+  crosshairShape.moveTo(0, -9);
+  crosshairShape.lineTo(0, 9);
+  crosshairShape.strokePath();
+  s.crosshair.add(crosshairShape);
   s.crosshair.add(s.add.circle(0, 0, 3, 0xff6a3d, 1));
   s.crosshair.setDepth(20);
+
+  s.gun = s.add.container(400, 550).setDepth(19);
+  const gunShadow = s.add.ellipse(0, 17, 90, 12, 0x05090d, 0.18);
+  const stockBack = s.add.rectangle(-31, 2, 14, 12, 0x6f3142, 1);
+  const stockMid = s.add.rectangle(-22, 0, 16, 16, 0x91475a, 1);
+  const stockTip = s.add.rectangle(-12, -2, 12, 12, 0xc36c5f, 1);
+  const receiver = s.add.rectangle(6, -2, 34, 16, 0x4b4f86, 1).setStrokeStyle(2, 0x182a38, 0.8);
+  const receiverTop = s.add.rectangle(1, -11, 18, 4, 0x747ab3, 1);
+  const glow = s.add.rectangle(4, -2, 12, 6, 0x7af0ff, 0.42);
+  const trigger = s.add.arc(-4, 8, 7, Phaser.Math.DegToRad(15), Phaser.Math.DegToRad(165), false, 0xdde8f0, 1)
+    .setStrokeStyle(2, 0x182a38, 0.8);
+  const grip = s.add.triangle(-4, 14, -7, -2, 8, -2, -1, 18, 0x5f273a, 1).setStrokeStyle(2, 0x182a38, 0.7);
+  const gunBarrel = s.add.container(18, -2);
+  gunBarrel.add(s.add.rectangle(12, 0, 28, 8, 0xdbe6ef, 1).setStrokeStyle(2, 0x182a38, 0.8));
+  gunBarrel.add(s.add.rectangle(25, 0, 12, 6, 0xb7c6d0, 1));
+  gunBarrel.add(s.add.rectangle(35, 0, 8, 10, 0xff9a62, 1));
+  gunBarrel.add(s.add.rectangle(0, 0, 10, 12, 0x90a7c0, 1));
+  s.gun.barrel = gunBarrel;
+  s.gun.add([gunShadow, stockBack, stockMid, stockTip, receiver, receiverTop, glow, trigger, grip, gunBarrel]);
 
   s.flash = s.add.rectangle(400, 300, 800, 600, 0xfff4cc, 0).setDepth(30);
   s.pauseText = addText(s, 400, 286, 'PAUSA\nENTER CONTINUA\nI TERMINA PARTIDA', 28, '#ffffff', 'center')
@@ -266,9 +296,9 @@ function buildScene(s) {
   s.over = s.add.container(0, 0).setDepth(55).setVisible(false);
   s.over.add(s.add.rectangle(400, 300, 800, 600, 0x02050a, 0.94));
   s.overTitle = addText(s, 400, 120, 'BUILD CERRADO', 34, '#fff7b1', 'center', true);
-  s.overScore = addText(s, 400, 186, '', 24, '#e7fff8', 'center');
-  s.overTable = addText(s, 400, 270, '', 20, '#7af0ff', 'center');
-  s.overHelp = addText(s, 400, 502, 'ENTER O U PARA REINICIAR EL DEPLOY', 16, '#ffd06a', 'center');
+  s.overScore = addText(s, 400, 180, '', 20, '#e7fff8', 'center');
+  s.overTable = addText(s, 400, 332, '', 18, '#7af0ff', 'center');
+  s.overHelp = addText(s, 400, 516, 'ENTER O U PARA REINICIAR EL DEPLOY', 16, '#ffd06a', 'center');
   s.over.add([s.overTitle, s.overScore, s.overTable, s.overHelp]);
 
 }
@@ -474,6 +504,7 @@ function updateCrosshair(s, dt) {
   const y = (isControlDown(s, 'P1_D') ? 1 : 0) - (isControlDown(s, 'P1_U') ? 1 : 0);
   s.crosshair.x = Phaser.Math.Clamp(s.crosshair.x + x * speed, 40, 760);
   s.crosshair.y = Phaser.Math.Clamp(s.crosshair.y + y * speed, 70, 540);
+  s.gun.barrel.rotation = Phaser.Math.Clamp(Phaser.Math.Angle.Between(s.gun.x + 12, s.gun.y - 1, s.crosshair.x, s.crosshair.y), -2.05, -1.15);
 }
 
 function spawnTarget(s, time) {
@@ -496,25 +527,28 @@ function spawnTarget(s, time) {
   const body = s.add.container(left ? -60 : 860, y);
   const tint = type === 'storm' ? 0xff6a8f : type === 'gold' ? 0xffcf5a : type === 'swift' ? 0x7af0ff : 0xe6f3ff;
   const shell = type === 'storm' ? 0x34111f : type === 'gold' ? 0x44391c : type === 'swift' ? 0x133c50 : 0x182a38;
-  const bodyW = type === 'storm' ? 60 : type === 'swift' ? 38 : 44;
-  const bodyH = type === 'storm' ? 30 : type === 'swift' ? 20 : 22;
-  const core = s.add.ellipse(-4, 0, bodyW, bodyH, tint, 1).setStrokeStyle(2, shell, 0.95);
-  const head = s.add.circle(type === 'storm' ? 19 : 15, type === 'storm' ? -10 : -8, type === 'storm' ? 12 : 9, tint, 1).setStrokeStyle(2, shell, 0.95);
-  const wingColor = type === 'storm' ? 0x6e2941 : type === 'gold' ? 0xffd36e : type === 'swift' ? 0x5dc8e8 : 0xb9d2df;
-  const wingTop = s.add.triangle(-6, -4, -10, -1, -28, -11, 2, -5, wingColor, 0.98)
-    .setStrokeStyle(1, shell, 0.45);
-  const wingBottom = s.add.triangle(-6, 4, -10, 1, -28, 11, 2, 5, wingColor, 0.98)
-    .setStrokeStyle(1, shell, 0.45);
-  const tail = s.add.triangle(type === 'storm' ? 35 : 26, 0, 0, 0, 0, -10, 12, 0, 0xff7b5a, 1);
-  const eye = s.add.circle(type === 'storm' ? 21 : 16, type === 'storm' ? -12 : -9, 2.4, 0x081018, 1);
-  const plate = s.add.rectangle(type === 'storm' ? -7 : -5, 0, type === 'storm' ? 26 : 20, type === 'storm' ? 16 : 12, 0x081018, type === 'storm' ? 0.82 : 0.74);
-  const icon = s.add.text(type === 'storm' ? -7 : -5, 0, type === 'storm' ? 'AI' : type === 'gold' ? '$' : type === 'swift' ? '>>' : '<>', {
-    fontFamily: 'monospace',
-    fontSize: type === 'storm' ? '12px' : '10px',
-    color: type === 'storm' ? '#fff2a8' : type === 'gold' ? '#ffe9a0' : '#d9fbff',
-    fontStyle: 'bold',
-  }).setOrigin(0.5);
-  body.add([wingTop, wingBottom, core, head, tail, eye, plate, icon]);
+  const bodyW = type === 'storm' ? 58 : type === 'swift' ? 40 : 46;
+  const bodyH = type === 'storm' ? 28 : type === 'swift' ? 18 : 22;
+  const headX = type === 'storm' ? 19 : 15;
+  const headY = type === 'storm' ? -8 : -7;
+  const headR = type === 'storm' ? 11 : 8;
+  const wingColor = type === 'storm' ? 0xb93f6b : type === 'gold' ? 0xffe08a : type === 'swift' ? 0x9ff6ff : 0xc8dae5;
+  const core = s.add.ellipse(-2, 0, bodyW, bodyH, tint, 1).setStrokeStyle(2, shell, 0.95);
+  const belly = s.add.ellipse(-4, 2, bodyW * 0.52, bodyH * 0.42, 0xffffff, type === 'storm' ? 0.2 : 0.28);
+  const wingBottom = s.add.ellipse(-8, 5, bodyW * 0.58, bodyH * 0.46, wingColor, 0.92)
+    .setStrokeStyle(1, shell, 0.28);
+  const wingTop = s.add.ellipse(-4, -3, bodyW * 0.68, bodyH * 0.54, wingColor, 0.98)
+    .setStrokeStyle(1, shell, 0.34);
+  const head = s.add.circle(headX, headY, headR, tint, 1).setStrokeStyle(2, shell, 0.95);
+  const neck = s.add.ellipse(10, -3, bodyW * 0.22, bodyH * 0.34, tint, 1);
+  const beak = s.add.triangle(type === 'storm' ? 31 : 25, headY + 1, 12, 0, 0, -4, 0, 4, 0xff7b5a, 1);
+  const tailTop = s.add.triangle(type === 'storm' ? -30 : -24, -4, 0, 0, -16, -4, -6, 4, wingColor, 0.95)
+    .setStrokeStyle(1, shell, 0.28);
+  const tailBottom = s.add.triangle(type === 'storm' ? -29 : -23, 4, 0, 0, -14, 4, -5, -4, wingColor, 0.82)
+    .setStrokeStyle(1, shell, 0.22);
+  const eyeWhite = s.add.circle(headX + (type === 'storm' ? 2 : 1), headY - 2, type === 'storm' ? 3.2 : 2.5, 0xffffff, 1);
+  const eye = s.add.circle(headX + (type === 'storm' ? 3 : 2), headY - 2, 1.4, 0x081018, 1);
+  body.add([tailBottom, tailTop, wingBottom, core, belly, wingTop, neck, head, beak, eyeWhite, eye]);
   let halo = null;
   let shield = null;
   if (type === 'storm') {
@@ -549,7 +583,6 @@ function spawnTarget(s, time) {
     wingBottom,
     halo,
     shield,
-    icon,
   });
   const pressure = Math.min(1, elapsed / 45);
   const introBonus = elapsed < START_GRACE ? (START_GRACE - elapsed) * 160 : 0;
@@ -577,7 +610,6 @@ function stepTargets(s, dt, time) {
     t.body.rotation = Math.sin(age * 10 + t.flap) * 0.06;
     t.wingTop.rotation = Math.sin(age * 16) * 0.35;
     t.wingBottom.rotation = -Math.sin(age * 16) * 0.35;
-    t.icon.alpha = 0.78 + Math.sin(age * 7 + t.flap) * 0.18;
     if (t.type === 'storm') {
       t.halo.alpha = 0.5 + Math.sin(age * 8) * 0.2;
     }
@@ -612,6 +644,7 @@ function shoot(s, time) {
     if (hit.type === 'storm' && hit.hp > 1) {
       hit.hp -= 1;
       if (hit.shield) hit.shield.setText(String(hit.hp));
+      sparkHit(s, hit.x, hit.y, hit.type);
       pulseHud(s, '#ff9db7');
       tone(s, 320, 0.08, 'sawtooth');
       popScore(s, hit.x, hit.y - 26, 'PATCH ' + hit.hp, '#fff2a8');
@@ -630,6 +663,7 @@ function shoot(s, time) {
     s.state.bestCombo = Math.max(s.state.bestCombo, s.state.combo);
     const gain = hit.value + (s.state.combo - 1) * 4;
     s.state.score += gain;
+    sparkHit(s, hit.x, hit.y, hit.type);
     popScore(s, hit.x, hit.y - 20, (hit.type === 'storm' ? 'PURGE ' : 'FIX +') + gain, hit.type === 'storm' ? '#ffb2c4' : hit.type === 'gold' ? '#ffd06a' : '#e2fff8');
     if (hit.type === 'storm') {
       clearScreenBlast(s, hit, time);
@@ -667,13 +701,49 @@ function stepShards(s, dt) {
 }
 
 function stepBeams(s, dt, time) {
-  s.crosshair.rotation += dt * 1.6;
   for (let i = s.beams.length - 1; i >= 0; i -= 1) {
     const b = s.beams[i];
     if (time > b.die) {
       s.beams.splice(i, 1);
       b.line.destroy();
     }
+  }
+}
+
+function sparkHit(s, x, y, type) {
+  const hot = type === 'storm' ? 0xff7aa3 : type === 'gold' ? 0xffcf5a : 0xffa25c;
+  const warm = type === 'storm' ? 0xffd1df : type === 'gold' ? 0xfff1b8 : 0xfff0c8;
+  const flash = s.add.circle(x, y, 12, warm, 0.95);
+  flash.vx = 0;
+  flash.vy = 0;
+  flash.life = flash.maxLife = 0.16;
+  flash.spin = 0;
+  s.fxLayer.add(flash);
+  s.shards.push(flash);
+  const ring = s.add.circle(x, y, 8, 0x000000, 0).setStrokeStyle(3, hot, 0.95);
+  ring.vx = 0;
+  ring.vy = 0;
+  ring.life = ring.maxLife = 0.18;
+  ring.spin = 0;
+  s.fxLayer.add(ring);
+  s.shards.push(ring);
+  for (let i = 0; i < 7; i += 1) {
+    const flame = s.add.rectangle(x, y, Phaser.Math.Between(6, 12), Phaser.Math.Between(2, 5), i % 2 ? warm : hot);
+    flame.vx = Phaser.Math.Between(-180, 180);
+    flame.vy = Phaser.Math.Between(-210, 90);
+    flame.life = flame.maxLife = 0.2 + Math.random() * 0.14;
+    flame.spin = Phaser.Math.FloatBetween(-8, 8);
+    s.fxLayer.add(flame);
+    s.shards.push(flame);
+  }
+  for (let i = 0; i < 5; i += 1) {
+    const ember = s.add.circle(x, y, Phaser.Math.Between(2, 4), hot, 1);
+    ember.vx = Phaser.Math.Between(-120, 120);
+    ember.vy = Phaser.Math.Between(-150, 50);
+    ember.life = ember.maxLife = 0.24 + Math.random() * 0.12;
+    ember.spin = 0;
+    s.fxLayer.add(ember);
+    s.shards.push(ember);
   }
 }
 
@@ -754,6 +824,19 @@ function pulseHud(s, color) {
 function updateSkyline(s, time) {
   const pulse = 0.28 + Math.sin(time * 0.003) * 0.08;
   for (let i = 0; i < s.skyline.length; i += 1) s.skyline[i].alpha = 0.86 + ((i % 2) ? pulse : -pulse * 0.4);
+  if (time >= s.nextWindowShift) {
+    s.nextWindowShift = time + 5000;
+    for (let i = 0; i < s.skyWindows.length; i += 1) {
+      const w = s.skyWindows[i];
+      if (Math.random() > 0.55) w.lit = !w.lit;
+    }
+  }
+  for (let i = 0; i < s.skyWindows.length; i += 1) {
+    const w = s.skyWindows[i];
+    w.alpha = w.lit ? w.litAlpha : w.baseAlpha;
+  }
+  s.skyHaze.x = 120 + ((time * 0.012) % 860);
+  s.skyHaze.alpha = 0.6 + 0.2 * Math.sin(time * 0.0014);
 }
 
 function killTarget(t) {
