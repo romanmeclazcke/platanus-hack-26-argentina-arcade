@@ -97,6 +97,7 @@ function update(time, delta) {
   const activeSlow = s.state.phase === 'play' && holdingSlow && !s.state.focusLock && s.state.focus > 0;
   const slow = activeSlow ? 0.45 : 1;
   const sim = dt * slow;
+  animateScreens(s, time);
 
   if (s.state.phase === 'menu') {
     if (consumeAnyPressedControl(s, ['START1', 'P1_1', 'P1_2'])) startRun(s, time);
@@ -173,6 +174,20 @@ function buildScene(s) {
   s.add.rectangle(400, 300, 800, 600, 0x07111f);
   s.add.circle(666, 92, 44, 0xffe38a, 0.92);
   s.add.circle(666, 92, 72, 0xffe38a, 0.12);
+  s.clouds = [];
+  s.skyFlyers = [];
+  s.nextSkyFlyer = 5000;
+  const clouds = [[98, 104, 0.12, 12], [286, 78, 0.08, 7], [548, 148, 0.1, 9], [722, 220, 0.07, 6]];
+  for (let i = 0; i < clouds.length; i += 1) {
+    const c = s.add.container(clouds[i][0], clouds[i][1]);
+    c.baseX = clouds[i][0];
+    c.baseY = clouds[i][1];
+    c.speed = clouds[i][3];
+    c.add(s.add.ellipse(0, 0, 90, 22, 0x9fb7c6, clouds[i][2]));
+    c.add(s.add.ellipse(30, 3, 58, 18, 0xc4d4dc, clouds[i][2] * 0.72));
+    c.add(s.add.ellipse(-34, 5, 48, 15, 0x8da8b8, clouds[i][2] * 0.64));
+    s.clouds.push(c);
+  }
   s.add.rectangle(400, 440, 800, 20, 0x46535c, 0.9);
   s.add.rectangle(400, 431, 800, 2, 0x718791, 0.45);
   s.add.rectangle(400, 449, 800, 2, 0x1b2429, 0.35);
@@ -314,23 +329,30 @@ function buildScene(s) {
     .setVisible(false);
 
   s.menu = s.add.container(0, 0).setDepth(50);
-  s.menu.add(s.add.rectangle(400, 300, 800, 600, 0x03070c, 0.82));
-  s.menu.add(addText(s, 400, 84, 'PALOMA PANIC', 44, '#f7ffb5', 'center', true));
-  s.menu.add(addText(s, 400, 132, 'PROD PANIC', 24, '#ff8c78', 'center', true));
-  s.menu.add(addText(s, 400, 168, 'DEFENDE EL DEPLOY DE BUENOS AIRES', 16, '#7af0ff', 'center', true));
-  s.menuInfo = addText(s, 400, 202, '', 18, '#e2fff8', 'center');
-  s.menuDesc = addText(s, 400, 238, '', 15, '#d8fff6', 'center');
-  s.menuHelp = addText(s, 400, 504, 'PATCHEA BUGS VOLADORES. ENTER/U PARA DEPLOY.', 16, '#ffd06a', 'center');
-  s.menuHigh = addText(s, 400, 330, '', 18, '#d8fff6', 'center');
-  s.menu.add([s.menuInfo, s.menuDesc, s.menuHelp, s.menuHigh]);
+  s.menu.add(s.add.rectangle(400, 300, 800, 600, 0x03070c, 0.84));
+  s.menuFrame = s.add.rectangle(400, 300, 650, 462, 0x03070c, 0.66).setStrokeStyle(2, 0x7af0ff, 0.28);
+  s.menuRuleTop = s.add.rectangle(400, 212, 500, 2, 0x7af0ff, 0.34);
+  s.menuRuleBottom = s.add.rectangle(400, 366, 500, 2, 0xffd06a, 0.3);
+  s.menuTitle = addText(s, 400, 72, 'PALOMA PANIC', 44, '#f7ffb5', 'center', true);
+  s.menuSub = addText(s, 400, 122, 'PROD PANIC', 24, '#ff8c78', 'center', true);
+  s.menuTag = addText(s, 400, 160, 'DEFENDE EL DEPLOY DE BUENOS AIRES', 16, '#7af0ff', 'center', true);
+  s.menuInfo = addText(s, 400, 236, '', 17, '#e2fff8', 'center');
+  s.menuDesc = addText(s, 400, 288, '', 16, '#d8fff6', 'center');
+  s.menuHigh = addText(s, 400, 390, '', 15, '#d8fff6', 'center');
+  s.menuHelp = addText(s, 400, 548, 'ENTER / U  DEPLOY', 22, '#ffd06a', 'center', true);
+  s.menu.add([s.menuFrame, s.menuRuleTop, s.menuRuleBottom, s.menuTitle, s.menuSub, s.menuTag, s.menuInfo, s.menuDesc, s.menuHigh, s.menuHelp]);
 
   s.over = s.add.container(0, 0).setDepth(55).setVisible(false);
-  s.over.add(s.add.rectangle(400, 300, 800, 600, 0x02050a, 0.94));
-  s.overTitle = addText(s, 400, 120, 'BUILD CERRADO', 34, '#fff7b1', 'center', true);
-  s.overScore = addText(s, 400, 180, '', 20, '#e7fff8', 'center');
-  s.overTable = addText(s, 400, 332, '', 18, '#7af0ff', 'center');
-  s.overHelp = addText(s, 400, 516, 'ENTER O U PARA REINICIAR EL DEPLOY', 16, '#ffd06a', 'center');
-  s.over.add([s.overTitle, s.overScore, s.overTable, s.overHelp]);
+  s.over.add(s.add.rectangle(400, 300, 800, 600, 0x02050a, 0.92));
+  s.overFrame = s.add.rectangle(400, 308, 664, 410, 0x07111f, 0.42).setStrokeStyle(2, 0xff8c78, 0.52);
+  s.overBand = s.add.rectangle(244, 104, 324, 52, 0x162513, 0.58).setStrokeStyle(2, 0xffd06a, 0.42);
+  s.overTitle = addText(s, 92, 86, 'BUILD CERRADO', 34, '#fff7b1', 'left', true);
+  s.overScoreLabel = addText(s, 96, 154, 'BUILD SCORE', 15, '#7af0ff', 'left', true);
+  s.overScore = addText(s, 94, 176, '', 42, '#f7ffb5', 'left', true);
+  s.overMetrics = addText(s, 104, 284, '', 18, '#e7fff8', 'left');
+  s.overTable = addText(s, 474, 190, '', 18, '#7af0ff', 'left');
+  s.overHelp = addText(s, 400, 516, 'ENTER / U  REDEPLOY', 18, '#ffd06a', 'center', true);
+  s.over.add([s.overFrame, s.overBand, s.overTitle, s.overScoreLabel, s.overScore, s.overMetrics, s.overTable, s.overHelp]);
 
 }
 
@@ -372,7 +394,7 @@ function createNameInput(s) {
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = 12;
-  input.placeholder = 'roman';
+  input.placeholder = 'CPU';
   input.style.width = '100%';
   input.style.boxSizing = 'border-box';
   input.style.padding = '12px 14px';
@@ -433,6 +455,22 @@ function addText(s, x, y, t, size, color, align, bold) {
   }).setOrigin(align === 'left' ? 0 : 0.5, 0);
 }
 
+function animateScreens(s, time) {
+  const p = 0.5 + 0.5 * Math.sin(time * 0.004);
+  if (s.menu && s.menu.visible) {
+    s.menuTitle.setScale(1 + p * 0.018);
+    s.menuSub.alpha = 0.72 + p * 0.28;
+    s.menuHelp.alpha = 0.58 + p * 0.42;
+    s.menuFrame.setStrokeStyle(2, 0x7af0ff, 0.22 + p * 0.2);
+    s.menuRuleBottom.alpha = 0.18 + p * 0.34;
+  }
+  if (s.over && s.over.visible) {
+    s.overBand.alpha = 0.48 + p * 0.22;
+    s.overFrame.setStrokeStyle(2, 0xff8c78, 0.38 + p * 0.24);
+    s.overHelp.alpha = 0.6 + p * 0.4;
+  }
+}
+
 function showMenu(s) {
   s.state.phase = 'menu';
   s.targets.forEach(killTarget);
@@ -441,26 +479,25 @@ function showMenu(s) {
   s.shards.length = 0;
   s.beams.forEach((b) => b.line.destroy());
   s.beams.length = 0;
-  s.crosshair.setVisible(true);
+  s.crosshair.setVisible(false);
   s.startText.setVisible(false);
-  setHudAlpha(s, 1);
+  setHudAlpha(s, 0.16);
   hideNameInput(s);
   s.menu.setVisible(true);
   s.over.setVisible(false);
   s.pauseText.setVisible(false);
   const best = s.state.hi[0] ? s.state.hi[0].score : 0;
-  const lines = ['TOP 5 BUILD'];
+  const lines = ['MEJORES PUNTAJES'];
   for (let i = 0; i < MAX_HIGH_SCORES; i += 1) {
     const row = s.state.hi[i];
     lines.push((i + 1) + '. ' + (row ? row.name : '---') + '  ' + String(row ? row.score : 0).padStart(4, '0'));
   }
-  s.menuInfo.setText('BUG HUNT NEON. NO DEJES FILTRAR MAS DE ' + MAX_ESCAPES + ' LEAKS.');
+  s.menuInfo.setText('SHOOTER ARCADE DE REFLEJOS\nNO DEJES FILTRAR MAS DE ' + MAX_ESCAPES + ' LEAKS');
   s.menuDesc.setText(
-    'MUEVE LA MIRA CON P1 CURSOR\n' +
-    'DISPARA CON U Y USA I PARA SLOWMO\n' +
-    'PALOMAS ESPECIALES DAN MAS PUNTOS, PERO SI ESCAPAN SUMAN LEAKS'
+    'U PATCH   I DEBUG\n' +
+    'MUEVE LA MIRA Y ENCADENA FIXES'
   );
-  s.menuHigh.setText('BEST BUILD ' + String(best).padStart(4, '0') + '\n\n' + lines.join('\n'));
+  s.menuHigh.setText('BEST BUILD ' + String(best).padStart(4, '0') + '\n' + lines.join('\n'));
   refreshHud(s);
 }
 
@@ -503,20 +540,22 @@ function endRun(s) {
   s.startText.setVisible(false);
   setHudAlpha(s, 0.12);
   const acc = s.state.shots ? Math.round((100 * s.state.hits) / s.state.shots) : 0;
-  const summary =
-    'BUILD SCORE ' + String(s.state.score).padStart(4, '0') +
-    '\nPATCH RATE ' + acc + '%' +
+  const score = String(s.state.score).padStart(4, '0');
+  const metrics =
+    'PATCH RATE ' + acc + '%' +
     '\nBEST CHAIN X' + s.state.bestCombo +
     '\nUPTIME ' + Math.floor(s.state.elapsed) + 's' +
     '\nLEAKS ' + s.state.escapes + '/' + MAX_ESCAPES;
   if (qualifiesForHighScore(s.state.hi, s.state.score)) {
     s.state.phase = 'naming';
-    s.state.pendingSummary = summary;
+    s.state.pendingScore = score;
+    s.state.pendingMetrics = metrics;
     showNameInput(s);
     return;
   }
   s.state.phase = 'over';
-  s.overScore.setText(summary);
+  s.overScore.setText(score);
+  s.overMetrics.setText(metrics);
   s.overTable.setText(formatHighScoreTable(s.state.hi));
   s.over.setVisible(true);
 }
@@ -572,19 +611,20 @@ function spawnTarget(s, time) {
   if (elapsed > 22 && typeRoll > 0.972) type = 'storm';
   else if (elapsed > 14 && typeRoll > 0.93) type = 'gold';
   else if (elapsed > START_GRACE && typeRoll > 0.8) type = 'swift';
+  const skin = type === 'pigeon' && Math.random() > 0.55 ? 'dark' : '';
   const dir = left ? 1 : -1;
   const earlyFactor = elapsed < 18 ? Phaser.Math.Linear(0.76, 1, elapsed / 18) : 1;
   const speed = (type === 'storm' ? Phaser.Math.Between(108, 145) : type === 'swift' ? Phaser.Math.Between(185, 235) : type === 'gold' ? Phaser.Math.Between(128, 162) : Phaser.Math.Between(105, 158)) * earlyFactor;
   const amp = type === 'storm' ? Phaser.Math.Between(8, 18) : type === 'swift' ? Phaser.Math.Between(16, 40) : Phaser.Math.Between(10, 28);
   const body = s.add.container(left ? -60 : 860, y);
-  const tint = type === 'storm' ? 0xff6a8f : type === 'gold' ? 0xffcf5a : type === 'swift' ? 0x7af0ff : 0xe6f3ff;
-  const shell = type === 'storm' ? 0x34111f : type === 'gold' ? 0x44391c : type === 'swift' ? 0x133c50 : 0x182a38;
+  const tint = type === 'storm' ? 0xff6a8f : type === 'gold' ? 0xffcf5a : type === 'swift' ? 0x7af0ff : skin ? 0x9fb7c6 : 0xe6f3ff;
+  const shell = type === 'storm' ? 0x34111f : type === 'gold' ? 0x44391c : type === 'swift' ? 0x133c50 : skin ? 0x253b4b : 0x182a38;
   const bodyW = type === 'storm' ? 58 : type === 'swift' ? 40 : 46;
   const bodyH = type === 'storm' ? 28 : type === 'swift' ? 18 : 22;
   const headX = type === 'storm' ? 19 : 15;
   const headY = type === 'storm' ? -8 : -7;
   const headR = type === 'storm' ? 11 : 8;
-  const wingColor = type === 'storm' ? 0xb93f6b : type === 'gold' ? 0xffe08a : type === 'swift' ? 0x9ff6ff : 0xc8dae5;
+  const wingColor = type === 'storm' ? 0xb93f6b : type === 'gold' ? 0xffe08a : type === 'swift' ? 0x9ff6ff : skin ? 0x6f8b9d : 0xc8dae5;
   const core = s.add.ellipse(-2, 0, bodyW, bodyH, tint, 1).setStrokeStyle(2, shell, 0.95);
   const belly = s.add.ellipse(-4, 2, bodyW * 0.52, bodyH * 0.42, 0xffffff, type === 'storm' ? 0.2 : 0.28);
   const wingBottom = s.add.ellipse(-8, 5, bodyW * 0.58, bodyH * 0.46, wingColor, 0.92)
@@ -917,8 +957,42 @@ function updateSkyline(s, time) {
     const w = s.skyWindows[i];
     w.alpha = w.lit ? w.litAlpha : w.baseAlpha;
   }
+  for (let i = 0; i < s.clouds.length; i += 1) {
+    const c = s.clouds[i];
+    c.x = ((c.baseX + time * 0.001 * c.speed + 110) % 1020) - 110;
+    c.y = c.baseY + Math.sin(time * 0.0007 + i) * 2;
+  }
+  if (time > s.nextSkyFlyer) spawnSkyFlyer(s, time);
+  for (let i = s.skyFlyers.length - 1; i >= 0; i -= 1) {
+    const f = s.skyFlyers[i];
+    f.body.x += f.vx;
+    f.body.y = f.baseY + Math.sin(time * 0.002 + f.phase) * 4;
+    if (f.blink) f.blink.alpha = 0.2 + 0.5 * (0.5 + 0.5 * Math.sin(time * 0.012));
+    if (f.beam) f.beam.alpha = 0.03 + 0.05 * (0.5 + 0.5 * Math.sin(time * 0.004 + f.phase));
+    if (f.body.x < -90 || f.body.x > 890) {
+      s.skyFlyers.splice(i, 1);
+      f.body.destroy();
+    }
+  }
   s.skyHaze.x = 120 + ((time * 0.012) % 860);
   s.skyHaze.alpha = 0.6 + 0.2 * Math.sin(time * 0.0014);
+}
+
+function spawnSkyFlyer(s, time) {
+  s.nextSkyFlyer = time + Phaser.Math.Between(18000, 32000);
+  const left = Math.random() > 0.5;
+  const body = s.add.container(left ? -70 : 870, Phaser.Math.Between(74, 174)).setAlpha(0.72);
+  const beam = s.add.triangle(0, 22, -20, 0, 20, 0, 0, 70, 0x7af0ff, 0.06);
+  const blink = s.add.container(0, 0);
+  body.add(beam);
+  body.add(s.add.ellipse(0, -9, 30, 16, 0xbfe8ef, 0.58).setStrokeStyle(1, 0x7af0ff, 0.52));
+  body.add(s.add.ellipse(0, 0, 58, 15, 0x9fb7c6, 0.9).setStrokeStyle(2, 0x526b78, 0.72));
+  body.add(s.add.rectangle(0, -5, 34, 7, 0x9fb7c6, 0.9));
+  body.add(s.add.ellipse(0, 4, 72, 12, 0x596f7a, 0.84));
+  body.add(s.add.ellipse(0, 7, 42, 6, 0x2b414b, 0.72));
+  for (let i = -1; i <= 1; i += 1) blink.add(s.add.circle(i * 17, 3, 3, i ? 0xffd06a : 0xb8ff6a, 0.9));
+  body.add(blink);
+  s.skyFlyers.push({ body, blink, beam, vx: (left ? 1 : -1) * Phaser.Math.FloatBetween(0.72, 1.05), baseY: body.y, phase: Math.random() * 6 });
 }
 
 function killTarget(t) {
@@ -976,7 +1050,8 @@ function finishNameEntry(s) {
   saveScores(s);
   hideNameInput(s);
   s.state.phase = 'over';
-  s.overScore.setText(s.state.pendingSummary || '');
+  s.overScore.setText(s.state.pendingScore || String(s.state.score).padStart(4, '0'));
+  s.overMetrics.setText(s.state.pendingMetrics || '');
   s.overTable.setText(formatHighScoreTable(s.state.hi));
   s.over.setVisible(true);
 }
