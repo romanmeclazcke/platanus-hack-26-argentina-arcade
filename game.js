@@ -546,18 +546,10 @@ function endRun(s) {
     '\nBEST CHAIN X' + s.state.bestCombo +
     '\nUPTIME ' + Math.floor(s.state.elapsed) + 's' +
     '\nLEAKS ' + s.state.escapes + '/' + MAX_ESCAPES;
-  if (qualifiesForHighScore(s.state.hi, s.state.score)) {
-    s.state.phase = 'naming';
-    s.state.pendingScore = score;
-    s.state.pendingMetrics = metrics;
-    showNameInput(s);
-    return;
-  }
-  s.state.phase = 'over';
-  s.overScore.setText(score);
-  s.overMetrics.setText(metrics);
-  s.overTable.setText(formatHighScoreTable(s.state.hi));
-  s.over.setVisible(true);
+  s.state.phase = 'naming';
+  s.state.pendingScore = score;
+  s.state.pendingMetrics = metrics;
+  showNameInput(s);
 }
 
 function setHudAlpha(s, alpha) {
@@ -1046,12 +1038,14 @@ function hideNameInput(s) {
 function finishNameEntry(s) {
   if (!s.nameUi || s.state.phase !== 'naming') return;
   const clean = s.nameUi.input.value.replace(/\s+/g, ' ').trim().slice(0, 12) || 'CPU';
-  s.state.hi = keepScores(s.state.hi, { name: clean, score: s.state.score });
-  saveScores(s);
+  if (qualifiesForHighScore(s.state.hi, s.state.score)) {
+    s.state.hi = keepScores(s.state.hi, { name: clean, score: s.state.score });
+    saveScores(s);
+  }
   hideNameInput(s);
   s.state.phase = 'over';
   s.overScore.setText(s.state.pendingScore || String(s.state.score).padStart(4, '0'));
-  s.overMetrics.setText(s.state.pendingMetrics || '');
+  s.overMetrics.setText('PLAYER ' + clean + '\n' + (s.state.pendingMetrics || ''));
   s.overTable.setText(formatHighScoreTable(s.state.hi));
   s.over.setVisible(true);
 }
