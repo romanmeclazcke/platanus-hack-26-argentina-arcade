@@ -75,6 +75,7 @@ function create() {
     startAt: 0,
     startUntil: 0,
     lastScore: 0,
+    crossPulse: 0,
     hi: [],
   };
   s.controls = { held: Object.create(null), pressed: Object.create(null) };
@@ -252,7 +253,7 @@ function buildScene(s) {
   }
 
   s.hudTop = s.add.rectangle(400, 42, 748, 44, 0x03070c, 0.78).setStrokeStyle(2, 0x9fffe0, 0.35);
-  s.scoreText = addText(s, 44, 32, 'BUILD 0000', 22, '#f6ffb0', 'left');
+  s.scoreText = addText(s, 44, 32, 'BUILD SCORE 0000', 22, '#f6ffb0', 'left');
   s.comboText = addText(s, 284, 32, 'CHAIN X1', 22, '#7af0ff', 'left');
   s.timeText = addText(s, 500, 32, 'UPTIME 0', 22, '#ffd06a', 'left');
   s.escapeText = addText(s, 648, 32, 'LEAKS 0/7', 22, '#ff8c78', 'left');
@@ -275,6 +276,8 @@ function buildScene(s) {
   crosshairShape.lineTo(0, 9);
   crosshairShape.strokePath();
   s.crosshair.add(crosshairShape);
+  s.crossPulse = s.add.circle(0, 0, 22, 0x000000, 0).setStrokeStyle(3, 0xffa25c, 0);
+  s.crosshair.add(s.crossPulse);
   s.crosshair.add(s.add.circle(0, 0, 3, 0xff6a3d, 1));
   s.crosshair.setDepth(20);
 
@@ -531,7 +534,7 @@ function setHudAlpha(s, alpha) {
 }
 
 function refreshHud(s) {
-  s.scoreText.setText('BUILD ' + String(s.state.score).padStart(4, '0'));
+  s.scoreText.setText('BUILD SCORE ' + String(s.state.score).padStart(4, '0'));
   s.comboText.setText('CHAIN X' + Math.max(1, s.state.combo));
   s.timeText.setText('UPTIME ' + Math.floor(s.state.elapsed));
   s.escapeText.setText('LEAKS ' + s.state.escapes + '/' + MAX_ESCAPES);
@@ -551,6 +554,9 @@ function updateCrosshair(s, dt) {
   s.gun.flash.alpha = s.gun.kick > 0 ? s.gun.kick * 1.8 : 0;
   s.gun.flash.setScale(0.2 + s.gun.kick * 1.2);
   s.gun.barrel.rotation = Phaser.Math.Clamp(Phaser.Math.Angle.Between(s.gun.x + 12, s.gun.y - 1, s.crosshair.x, s.crosshair.y), -2.05, -1.15);
+  s.state.crossPulse = Math.max(0, s.state.crossPulse - dt * 5.5);
+  s.crossPulse.alpha = s.state.crossPulse;
+  s.crossPulse.setScale(0.55 + (1 - s.state.crossPulse) * 0.75);
 }
 
 function spawnTarget(s, time) {
@@ -595,14 +601,22 @@ function spawnTarget(s, time) {
   const eyeWhite = s.add.circle(headX + (type === 'storm' ? 2 : 1), headY - 2, type === 'storm' ? 3.2 : 2.5, 0xffffff, 1);
   const eye = s.add.circle(headX + (type === 'storm' ? 3 : 2), headY - 2, 1.4, 0x081018, 1);
   let accent = null;
-  if (type === 'gold') accent = s.add.circle(-4, 0, bodyW * 0.38, 0xfff0b0, 0.16).setStrokeStyle(2, 0xffcf5a, 0.5);
-  else if (type === 'swift') accent = s.add.line(-24, 0, 0, 0, -18, 0, 0x9ff6ff, 0.9).setLineWidth(2, 6);
+  if (type === 'gold') {
+    accent = s.add.container(0, 0);
+    accent.add(s.add.line(-30, -3, 0, 0, -16, 0, 0xfff0b0, 0.9).setLineWidth(2, 5));
+    accent.add(s.add.line(-26, 5, 0, 0, -12, 0, 0xffcf5a, 0.7).setLineWidth(2, 4));
+  } else if (type === 'swift') {
+    accent = s.add.container(0, 0);
+    accent.add(s.add.line(-31, -5, 0, 0, -18, 0, 0x9ff6ff, 0.95).setLineWidth(2, 5));
+    accent.add(s.add.line(-34, 1, 0, 0, -14, 0, 0x7af0ff, 0.72).setLineWidth(2, 4));
+    accent.add(s.add.line(-27, 7, 0, 0, -10, 0, 0xd8fff6, 0.55).setLineWidth(1, 3));
+  }
   else if (type === 'storm') accent = s.add.ellipse(-6, 0, bodyW * 0.9, bodyH * 0.8, 0xff7aa3, 0.08).setStrokeStyle(2, 0xffb2c4, 0.22);
   body.add([tailBottom, tailTop, accent, wingBottom, core, belly, wingTop, neck, head, beak, eyeWhite, eye].filter(Boolean));
   let halo = null;
   let shield = null;
   if (type === 'storm') {
-    halo = s.add.circle(-4, 0, 34, 0x000000, 0).setStrokeStyle(3, 0xffb2c4, 0.9);
+    halo = s.add.circle(-4, 0, 34, 0x000000, 0).setStrokeStyle(4, 0xffb2c4, 0.9);
     shield = s.add.text(-4, -40, '3', {
       fontFamily: 'monospace',
       fontSize: '18px',
@@ -702,6 +716,7 @@ function shoot(s, time) {
       hit.hp -= 1;
       if (hit.shield) hit.shield.setText(String(hit.hp));
       sparkHit(s, hit.x, hit.y, hit.type);
+      pulseCrosshair(s, hit.type);
       pulseHud(s, '#ff9db7');
       tone(s, 320, 0.08, 'sawtooth');
       popScore(s, hit.x, hit.y - 26, 'PATCH ' + hit.hp, '#fff2a8');
@@ -721,7 +736,9 @@ function shoot(s, time) {
     const gain = hit.value + (s.state.combo - 1) * 4;
     s.state.score += gain;
     sparkHit(s, hit.x, hit.y, hit.type);
+    pulseCrosshair(s, hit.type);
     popScore(s, hit.x, hit.y - 20, (hit.type === 'storm' ? 'PURGE ' : 'FIX +') + gain, hit.type === 'storm' ? '#ffb2c4' : hit.type === 'gold' ? '#ffd06a' : '#e2fff8');
+    if (s.state.combo >= 5 && s.state.combo % 5 === 0) popScore(s, hit.x, hit.y - 46, 'CHAIN X' + s.state.combo, '#7af0ff');
     if (hit.type === 'storm') {
       clearScreenBlast(s, hit, time);
       pulseHud(s, '#ff6a8f');
@@ -749,6 +766,7 @@ function stepShards(s, dt) {
     p.vy += 460 * dt;
     p.rotation += p.spin * dt;
     p.alpha = Math.max(0, p.life / p.maxLife);
+    if (p.grow) p.setScale(1 + (1 - p.life / p.maxLife) * p.grow);
     if (p.label) p.setScale(1 + (1 - p.life / p.maxLife) * 0.4);
     if (p.life <= 0) {
       s.shards.splice(i, 1);
@@ -767,6 +785,12 @@ function stepBeams(s, dt, time) {
   }
 }
 
+function pulseCrosshair(s, type) {
+  const color = type === 'storm' ? 0xff7aa3 : type === 'gold' ? 0xffcf5a : 0x7af0ff;
+  s.state.crossPulse = 1;
+  s.crossPulse.setStrokeStyle(3, color, 1);
+}
+
 function sparkHit(s, x, y, type) {
   const hot = type === 'storm' ? 0xff7aa3 : type === 'gold' ? 0xffcf5a : 0xffa25c;
   const warm = type === 'storm' ? 0xffd1df : type === 'gold' ? 0xfff1b8 : 0xfff0c8;
@@ -780,8 +804,9 @@ function sparkHit(s, x, y, type) {
   const ring = s.add.circle(x, y, 8, 0x000000, 0).setStrokeStyle(3, hot, 0.95);
   ring.vx = 0;
   ring.vy = 0;
-  ring.life = ring.maxLife = 0.18;
+  ring.life = ring.maxLife = 0.26;
   ring.spin = 0;
+  ring.grow = type === 'storm' ? 3.2 : 2.4;
   s.fxLayer.add(ring);
   s.shards.push(ring);
   for (let i = 0; i < 7; i += 1) {
